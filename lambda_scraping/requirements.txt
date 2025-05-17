@@ -1,0 +1,6 @@
+boto3
+pandas
+logging
+decimal
+datetime
+scraping

@@ -1,0 +1,24 @@
+name: Deploy Lambdas
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-lambda:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Deploy scraping Lambda
+        run: |
+          cd lambda_scraping
+          zip -r scraping_lambda_package.zip .
+          aws lambda update-function-code --function-name scraping_guardar --zip-file fileb://scraping_lambda_package.zip --region eu-west-1
+
+      - name: Deploy calcular volatilidad Lambda
+        run: |
+          cd lambda_volatilidad
+          zip -r calcular_volatilidad_package.zip .
+          aws lambda update-function-code --function-name calcular_volatilidad --zip-file fileb://calcular_volatilidad_package.zip --region eu-west-1

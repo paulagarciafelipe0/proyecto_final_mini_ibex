@@ -111,15 +111,20 @@ resource "aws_lambda_function" "scraping_guardar_dynamo" {
   timeout       = 180
 }
 
-# Lambda: calcular_volatilidad
 resource "aws_lambda_function" "calcular_volatilidad" {
   function_name = "calcularVolatilidadMiniIBEX"
-  s3_bucket     = aws_s3_bucket.lambda_bucket.id
-  s3_key        = "vol_lambda_package.zip"
-  handler       = "lambda_function_calculo_vol.lambda_handler"
-  runtime       = "python3.11"
-  role          = aws_iam_role.lambda_exec_role.arn
-  timeout       = 180
+
+  package_type = "Image"
+  image_uri    = "786055265018.dkr.ecr.eu-west-1.amazonaws.com/lambda_volatilidad:2025-05-17"
+
+  role         = aws_iam_role.lambda_exec_role.arn
+  timeout      = 900
+}
+
+
+resource "aws_iam_role_policy_attachment" "lambda_basic" {
+  role       = aws_iam_role.lambda_exec_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
 # EventBridge trigger diario para scraping

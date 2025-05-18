@@ -1,4 +1,4 @@
-name: PR Check
+name: PR Check - Linter & Tests
 
 on:
   pull_request:
@@ -8,18 +8,29 @@ on:
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
 
-      - name: Set up Python
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.11
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.11'
 
       - name: Install dependencies
         run: |
+          python -m pip install --upgrade pip
+          pip install -r lambda_scraping/requirements.txt
+          pip install -r lambda_volatilidad/requirements.txt
           pip install flake8 pytest
 
-      - name: Run flake8
+      - name: Run flake8 on all code
         run: |
-          flake8 web_app
+          flake8 lambda_scraping/
+          flake8 lambda_volatilidad/
+          flake8 web_app/
+
+      - name: Run pytest
+        run: |
+          pytest tests/

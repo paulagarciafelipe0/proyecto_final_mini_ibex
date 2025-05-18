@@ -3,3 +3,7 @@ boto3
 matplotlib
 pandas
 plotly
+numpy
+pillow
+xlsxWriter
+io

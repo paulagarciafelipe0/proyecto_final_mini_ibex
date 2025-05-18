@@ -1,0 +1,90 @@
+import boto3
+import pandas as pd
+from datetime import datetime, timezone
+from decimal import Decimal
+import mibian
+from scipy.stats import norm
+mibian.norm = norm 
+
+dynamodb = boto3.resource('dynamodb', region_name='eu-west-1')
+tabla_opciones = dynamodb.Table('OpcionesMiniIBEX')
+tabla_futuros = dynamodb.Table('FuturosMiniIBEX')
+tabla_volatilidad = dynamodb.Table('VolatilidadMiniIBEX')
+
+# --- Funciones auxiliares ---
+def calcular_dias_vencimiento(fecha_vencimiento):
+    hoy = datetime.utcnow()
+    return (fecha_vencimiento - hoy).days / 365
+
+def obtener_futuro_mas_cercano(df_futuros):
+    df_futuros['fecha_vencimiento'] = pd.to_datetime(df_futuros['fecha_vencimiento'])
+    df_futuros = df_futuros.sort_values('fecha_vencimiento')
+    return df_futuros.iloc[0]['último']
+
+def calcular_volatilidad(S, K, T, tipo, precio_opcion):
+    try:
+        if tipo == 'CALL':
+            bs = mibian.BS([S, K, 0, T*365], callPrice=precio_opcion)
+        elif tipo == 'PUT':
+            bs = mibian.BS([S, K, 0, T*365], putPrice=precio_opcion)
+        else:
+            return None
+
+        # Verificar que impliedVol existe y no es None
+        if hasattr(bs, 'impliedVol') and bs.impliedVol is not None:
+            return bs.impliedVol
+        else:
+            print(f"impliedVol no disponible para S={S}, K={K}, T={T}, tipo={tipo}, precio={precio_opcion}")
+            return None
+    except Exception as e:
+        print(f"Error calculando volatilidad: {e}")
+        return None
+
+
+# --- Main Handler ---
+def lambda_handler(event, context):
+    # Obtener datos de DynamoDB
+    opciones = tabla_opciones.scan()['Items']
+    futuros = tabla_futuros.scan()['Items']
+    
+    df_opciones = pd.DataFrame(opciones)
+    df_futuros = pd.DataFrame(futuros)
+
+    if df_opciones.empty or df_futuros.empty:
+        print("No hay datos en alguna tabla.")
+        return {'statusCode': 400, 'body': 'No hay datos.'}
+    
+    # Obtener precio del futuro más cercano
+    precio_futuro = obtener_futuro_mas_cercano(df_futuros)
+
+    # Procesar cada opción
+    for _, row in df_opciones.iterrows():
+        try:
+            fecha_venc = pd.to_datetime(row['fecha_vencimiento'])
+            T = calcular_dias_vencimiento(fecha_venc)
+            if T <= 0:
+                continue  # Omitir opciones vencidas
+            
+            K = float(row['strike'])
+            tipo = row['tipo']
+            precio_opcion = float(row['precio_anterior'])
+
+            vol = calcular_volatilidad(precio_futuro, K, T, tipo, precio_opcion)
+            if vol is None or vol <= 0 or vol > 300:
+                continue  # Descartar valores imposibles
+
+            # Guardar en DynamoDB tabla volatilidad
+            item = {
+                'fecha_vencimiento': row['fecha_vencimiento'],
+                'strike_tipo_timestamp': f"{K}_{tipo}_{datetime.now(timezone.utc).isoformat()}",
+                'timestamp': datetime.utcnow().isoformat(),
+                'volatilidad_implicita': Decimal(str(round(vol, 2)))
+            }
+
+            tabla_volatilidad.put_item(Item=item)
+            print(f"✅ Guardado vol {vol:.2f}% strike {K} tipo {tipo}")
+        
+        except Exception as e:
+            print(f"Error procesando opción: {e}")
+
+    return {'statusCode': 200, 'body': 'Volatilidad calculada y guardada.'}

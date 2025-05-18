@@ -1,9 +1,6 @@
-streamlit
-boto3
-matplotlib
-pandas
-plotly
-numpy
-pillow
-xlsxWriter
-io
+streamlit>=1.XX
+matplotlib>=3.4
+pandas>=1.3
+boto3>=1.24
+numpy>=1.21
+scipy>=1.7

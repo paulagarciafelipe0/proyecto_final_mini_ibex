@@ -2,9 +2,16 @@ services:
   app:
     build: .
     ports:
-      - "8501:8501"
+      - "8501:8501"          # expone el 8501 del contenedor al 8501 del host
     env_file:
       - .env
     volumes:
       - .:/app
     restart: unless-stopped
+    # Si quieres, explícitalo aquí de nuevo:
+    command: >
+      streamlit run app.py
+      --server.port=8501
+      --server.address=0.0.0.0
+      --server.enableCORS=false
+      --server.enableXsrfProtection=false

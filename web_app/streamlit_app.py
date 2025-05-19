@@ -115,8 +115,15 @@ st.markdown("""
 
 # --- Obtener datos desde DynamoDB ---
 @st.cache_data(ttl=3600)
+@st.cache_data(ttl=3600)
 def cargar_datos_dynamodb():
-    dynamodb = boto3.resource('dynamodb', region_name='eu-west-1')
+    # Inicializa una sesión de boto3 usando los secrets de Streamlit
+    session = boto3.Session(
+        aws_access_key_id     = st.secrets["aws"]["aws_access_key_id"],
+        aws_secret_access_key = st.secrets["aws"]["aws_secret_access_key"],
+        region_name           = st.secrets["aws"]["region_name"]
+    )
+    dynamodb = session.resource("dynamodb")
 
     # Opciones
     tabla_opciones = dynamodb.Table('OpcionesMiniIBEX')
@@ -131,15 +138,13 @@ def cargar_datos_dynamodb():
     tabla_vol = dynamodb.Table('VolatilidadMiniIBEX')
     vol = tabla_vol.scan()['Items']
     df_vol = pd.DataFrame(vol)
-    # extraer strike y tipo
     df_vol['strike'] = df_vol['strike_tipo_timestamp'].apply(lambda x: float(x.split('_')[0]))
     df_vol['tipo'] = df_vol['strike_tipo_timestamp'].apply(lambda x: x.split('_')[1])
     df_vol['volatilidad_implicita'] = df_vol['volatilidad_implicita'].astype(float)
     df_vol['fecha_vencimiento'] = pd.to_datetime(df_vol['fecha_vencimiento'])
-    # extraer datetime de scrapping y fecha
-    def parse_timestamp(s):
-        return s.split('_', 2)[2]
-    df_vol['scrap_datetime'] = pd.to_datetime(df_vol['strike_tipo_timestamp'].apply(parse_timestamp))
+    df_vol['scrap_datetime'] = pd.to_datetime(
+        df_vol['strike_tipo_timestamp'].apply(lambda s: s.split('_', 2)[2])
+    )
     df_vol['scrap_date'] = df_vol['scrap_datetime'].dt.date
 
     # Futuros
@@ -150,6 +155,7 @@ def cargar_datos_dynamodb():
     df_futuros['apertura'] = df_futuros['apertura'].astype(float)
 
     return df_opciones, df_vol, df_futuros
+
 
 # --- Cálculo de estadísticas de volatilidad ---
 def calcular_estadisticas(df_vol_fecha):
